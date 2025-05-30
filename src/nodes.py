@@ -68,17 +68,14 @@ class QuestionAnsweringNode:
             state["intent"] = "general question"
 
         # Select appropriate system prompt based on intent
-        if state["intent"] == "recommendation model question":
+        if state["intent"] == "recommendation model":
             system_msg = prompts.recommendation_system_prompt
-        elif state["intent"] == "medical taxonomy question":
+        elif state["intent"] == "medical taxonomy":
             system_msg = prompts.medical_taxonomy_system_prompt
-        elif state["intent"] == "smart links question":
+        elif state["intent"] == "smart links":
             system_msg = prompts.smart_links_system_prompt
         else:
-            # Fallback system message if intent doesn't match expected values
-            system_msg = """You are an AI assistant helping with general questions.
-            Use the chat history for context when answering questions.
-            Be specific and professional in your responses."""
+            raise ValueError(f"Invalid intent: {state['intent']}")
         
         # Create messages list with system message and existing chat history
         messages = [SystemMessage(content=system_msg)] + state["messages"]
