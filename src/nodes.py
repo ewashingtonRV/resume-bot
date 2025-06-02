@@ -54,7 +54,7 @@ class IntentClassificationNode:
 class QuestionAnsweringNode:
     """Node for answering questions using chat history."""
     
-    def __init__(self, model_name: str = "gpt-4o-mini"):
+    def __init__(self, model_name: str = "gpt-4o"):
         self.llm = ChatOpenAI(model=model_name)
 
     def __call__(self, state: State) -> State:

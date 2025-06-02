@@ -1,3 +1,4 @@
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -8,11 +9,9 @@ import numpy as np
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langsmith import utils
-
 import uuid
 import time
-# openai_api_key = os.getenv('OPENAI_API_KEY')
-# openai = OpenAI()
+
 model_name = "gpt-4o"
 stream = True
 
