@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import os
 from typing import Dict, Any, List, Tuple
 from dotenv import load_dotenv
+import logging
 load_dotenv()
 
 class GitHubStats:
@@ -22,49 +23,28 @@ class GitHubStats:
         self.org_id = "O_kgDOBtImFw"
         self.graphql_url = "https://api.github.com/graphql"
 
-    def get_repos(self) -> list[str]:
+    def get_repos(self) -> list[dict]:
         """
         Get all repositories for the organization.
         """
-        return [
-            "dmd-evals-dbx-scratch", 
-            "end_of_section_links",
-            "guides-symptoms-preprocess",
-            "health-assistant-batch-evals",
-            "healthline-k1-tagging",
-            "healthline-kmeta-tagging",
-            "healthline-smart-links",
-            "healthline-update-text-data",
-            "healthline-write-content-app-data",
-            "medical-taxonomy-enrichment-api",
-            "optum-now-core-graphql-api",
-            "optum-now-health-assistant-ai-api",
-            "optum-now-health-assistant-be",
-            "optum-now-health-assistant-ds",
-            "optum-now-health-assistant-fe",
-            "optum-now-raas-api-ds-sidecar",
-            "optum-now-traveler-api-ds-sidecar",
-            "optum-now-traveler-ds-api",
-            "raas-admin-console",
-            "raas-admin-console-ds-sidecar",
-            "raas-py-sdk",
-            "raas-py-sdk-classes",
-            "raas-sdk",
-            "rvo-appraiser",
-            "rvo-eval-sdk",
-            "rvo-sdapi-models",
-            "tfe_databricks_datascience",
-            "traveler-ds-api-classes",
-            "traveler-ds-sdk",
-            "traverler-v3-scratch",
-            "unified-search-graphql-api",
-            "unified-search-vespa-application"
+        logging.info("Getting repository mappings")
+        repos_lod = [
+            {"category_name": "ds-lead", "repos": ["dmd-evals-dbx-scratch", "health-assistant-batch-evals", "optum-now-health-assistant-ai-api", 
+                                                   "optum-now-health-assistant-be", "optum-now-health-assistant-ds", "rvo-eval-sdk"]},
+            {"category_name": "raas", "repos": ["raas-admin-console-ds-sidecar",  "optum-now-core-graphql-api", "optum-now-traveler-api-ds-sidecar", "optum-now-traveler-ds-api", "traverler-v3-scratch", "unified-search-vespa-application"]},
+            {"category_name": "medical taxonomy", "repos": ["medical-taxonomy-enrichment-api", "guides-symptoms-preprocess"]},
+            {"category_name": "recommendation models", "repos": ["rvo-sdapi-models", "tfe_databricks_datascience"]},
+            {"category_name": "smart links", "repos": ["healthline-smart-links",  "end_of_section_links"]},
+            {"category_name": "article tagging", "repos": ["healthline-k1-tagging", "healthline-kmeta-tagging", "healthline-smart-links", "healthline-update-text-data", "healthline-write-content-app-data"]}
         ]
+        logging.info(f"Found {len(repos_lod)} category mappings")
+        return repos_lod
         
     def get_repo_user_commits(self, repo_name: str, lookback_days: int) -> int:
         """
         Get the number of commits made by the user to a specific repository.
         """
+        logging.info(f"Getting commits for repo: {repo_name}")
         start_date, end_date = self.calculate_date_range(lookback_days)
         commits_url = f'{self.base_url}/repos/{self.org_name}/{repo_name}/commits'
         params = {
@@ -72,14 +52,21 @@ class GitHubStats:
             'since': start_date.isoformat(),
             'until': end_date.isoformat()
         }
-        commits_response = requests.get(commits_url, headers=self.headers, params=params)
-        commits_response.raise_for_status()
-        return len(commits_response.json()) 
+        try:
+            commits_response = requests.get(commits_url, headers=self.headers, params=params)
+            commits_response.raise_for_status()
+            commits = len(commits_response.json())
+            logging.info(f"Found {commits} commits for repo {repo_name}")
+            return commits
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error getting commits for repo {repo_name}: {str(e)}")
+            return 0
     
     def get_repo_user_prs(self, repo_name: str, lookback_days: int) -> int:
         """
         Get the number of pull requests made by the user to a specific repository.
         """
+        logging.info(f"Getting PRs for repo: {repo_name}")
         start_date, end_date = self.calculate_date_range(lookback_days)
         pulls_url = f'{self.base_url}/repos/{self.org_name}/{repo_name}/pulls'
         params = {
@@ -90,9 +77,15 @@ class GitHubStats:
             'since': start_date.isoformat(),
             'until': end_date.isoformat()
         }
-        pulls_response = requests.get(pulls_url, headers=self.headers, params=params)   
-        pulls_response.raise_for_status()
-        return len(pulls_response.json())
+        try:
+            pulls_response = requests.get(pulls_url, headers=self.headers, params=params)
+            pulls_response.raise_for_status()
+            prs = len(pulls_response.json())
+            logging.info(f"Found {prs} PRs for repo {repo_name}")
+            return prs
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error getting PRs for repo {repo_name}: {str(e)}")
+            return 0
     
     @staticmethod
     def calculate_date_range(lookback_days: int) -> Tuple[datetime, datetime]:
@@ -115,6 +108,7 @@ class GitHubStats:
         Returns:
             Dict containing various GitHub statistics for the user
         """
+        logging.info(f"Getting user stats for past {lookback_days} days")
         start_date, end_date = self.calculate_date_range(lookback_days)
         query = f"""
             query {{
@@ -131,29 +125,44 @@ class GitHubStats:
                 }}
             }}
             """
-        response = requests.post(self.graphql_url, json={"query": query}, headers=self.headers)
-        return response.json()
+        try:
+            response = requests.post(self.graphql_url, json={"query": query}, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error getting user stats: {str(e)}")
+            return {}
 
-    def get_repo_stats(self, lookback_days: int = 365) -> Dict[str, Any]:
+    def get_repo_stats(self, lookback_days: int = 365, intent_category_name: str = None) -> Dict[str, Any]:
         """
         Get GitHub statistics for contributions to repositories.
 
         Args:
             lookback_days: Number of days to look back for statistics
+            intent_category_name: Category name to filter repositories (e.g., 'raas', 'medical taxonomy')
 
         Returns:
             Dict containing repository statistics including PRs and commits per repo
         """
+        logging.info(f"Getting repo stats for category '{intent_category_name}' over past {lookback_days} days")
+        
         # Initialize stats dictionary
         stats = {
-            'repositories': {}
+            'repositories': {},
+            'lookback_days': lookback_days,
+            'category': intent_category_name
         }
         
         try:
-            repositories = self.get_repos()
-            for repo in repositories:
-                repo_name = repo['name']
-                
+            repo_lod = self.get_repos()
+            logging.info(f"Looking for repos in category: {intent_category_name}")
+            
+            # Find the category's repositories
+            category_repo_lod = [repo for repo in repo_lod if repo["category_name"] == intent_category_name]
+            category_repos = category_repo_lod[0]["repos"]
+            logging.info(f"Found {len(category_repos)} repos for category {intent_category_name}: {category_repos}")
+            
+            for repo_name in category_repos:
                 # Get commit and PR counts for this repo
                 commit_count = self.get_repo_user_commits(repo_name, lookback_days)
                 pr_count = self.get_repo_user_prs(repo_name, lookback_days)
@@ -164,9 +173,15 @@ class GitHubStats:
                         'commits': commit_count,
                         'pull_requests': pr_count
                     }
+            
+            if not stats['repositories']:
+                stats['message'] = f"No contributions found in {intent_category_name} repositories in the last {lookback_days} days."
+            
+            logging.info(f"Final stats for {intent_category_name}: {stats}")
             return stats
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Error fetching GitHub org stats: {str(e)}")
+        except Exception as e:
+            logging.error(f"Error in get_repo_stats: {str(e)}", exc_info=True)
+            raise
         
     def get_sha_list(self, commits_response: list[dict]) -> list[str]:
         sha_list = []
