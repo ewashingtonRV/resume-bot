@@ -55,9 +55,7 @@ class GitHubStats:
         try:
             commits_response = requests.get(commits_url, headers=self.headers, params=params)
             commits_response.raise_for_status()
-            commits = len(commits_response.json())
-            logging.info(f"Found {commits} commits for repo {repo_name}")
-            return commits
+            return commits_response
         except requests.exceptions.RequestException as e:
             logging.error(f"Error getting commits for repo {repo_name}: {str(e)}")
             return 0
@@ -80,9 +78,7 @@ class GitHubStats:
         try:
             pulls_response = requests.get(pulls_url, headers=self.headers, params=params)
             pulls_response.raise_for_status()
-            prs = len(pulls_response.json())
-            logging.info(f"Found {prs} PRs for repo {repo_name}")
-            return prs
+            return pulls_response
         except requests.exceptions.RequestException as e:
             logging.error(f"Error getting PRs for repo {repo_name}: {str(e)}")
             return 0
@@ -147,11 +143,7 @@ class GitHubStats:
         logging.info(f"Getting repo stats for category '{intent_category_name}' over past {lookback_days} days")
         
         # Initialize stats dictionary
-        stats = {
-            'repositories': {},
-            'lookback_days': lookback_days,
-            'category': intent_category_name
-        }
+        stats_lod = []
         
         try:
             repo_lod = self.get_repos()
@@ -164,21 +156,23 @@ class GitHubStats:
             
             for repo_name in category_repos:
                 # Get commit and PR counts for this repo
-                commit_count = self.get_repo_user_commits(repo_name, lookback_days)
-                pr_count = self.get_repo_user_prs(repo_name, lookback_days)
+                commit_response = self.get_repo_user_commits(repo_name, lookback_days)
+                commit_count = len(commit_response.json())
+                pr_response = self.get_repo_user_prs(repo_name, lookback_days)
+                pr_count = len(pr_response.json())
                 
                 # Only include repos where user has contributed
                 if commit_count > 0 or pr_count > 0:
-                    stats['repositories'][repo_name] = {
+                    stats_dict = {
+                        'repo_name': repo_name,
                         'commits': commit_count,
                         'pull_requests': pr_count
                     }
-            
-            if not stats['repositories']:
-                stats['message'] = f"No contributions found in {intent_category_name} repositories in the last {lookback_days} days."
-            
-            logging.info(f"Final stats for {intent_category_name}: {stats}")
-            return stats
+                    total_code_changes = self.get_commit_stats_total_code_changes(commit_response.json(), repo_name)
+                    stats_dict['total_code_changes'] = total_code_changes
+                    stats_lod.append(stats_dict)
+            logging.info(f"Final stats for {intent_category_name}: {stats_lod}")
+            return stats_lod
         except Exception as e:
             logging.error(f"Error in get_repo_stats: {str(e)}", exc_info=True)
             raise
