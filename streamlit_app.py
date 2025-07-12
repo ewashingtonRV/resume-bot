@@ -72,7 +72,8 @@ def display_chat_history():
 
 def main():
     st.title("Resume Bot Chat")
-    st.markdown("Ask me questions about my experience and projects!")
+    st.markdown("Ask me questions about my experience and projects! \
+                The bot is currently geared towards providing specifics about the RVOH bullets in my resume")
     
     # Initialize session state
     initialize_session_state()

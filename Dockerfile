@@ -33,11 +33,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN pip install uv
 
-# Copy the entire project first
-COPY . .
+# Copy requirements.txt first (for better Docker layer caching)
+COPY requirements.txt .
 
 # Install dependencies using uv
-RUN uv pip install --system --no-cache .
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
 
 # --- Final Stage --- #
 FROM base AS final
@@ -53,8 +56,8 @@ COPY . .
 # COPY ./alembic.ini /app/  # Temporarily commented out until alembic init is run
 # COPY ./alembic /app/alembic # Temporarily commented out until alembic init is run
 
-EXPOSE 8501
+EXPOSE 8000
 
-# Command to run the application using uvicorn
+# Command to run the FastAPI application using uvicorn
 # Use --host 0.0.0.0 to make it accessible from outside the container
-CMD ["streamlit", "run", "app.py"]
+CMD ["uvicorn", "fastapi_app:app", "--host", "0.0.0.0", "--port", "8000"]
