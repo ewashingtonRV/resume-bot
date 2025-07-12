@@ -4,6 +4,7 @@ from typing import List, Dict
 from src.state import State
 import src.prompts as prompts
 import logging
+from langchain.agents import initialize_agent, AgentType
 
 def get_last_human_message(messages: List[BaseMessage]) -> str:
     """Extract the last human message from the chat history."""
@@ -75,9 +76,10 @@ class IntentClassificationNode:
 class QuestionAnsweringNode:
     """Node for answering questions using chat history."""
     
-    def __init__(self, model_name: str = "gpt-4o-mini", api_key: str = None):
+    def __init__(self, model_name: str = "gpt-4o-mini", api_key: str = None, tools: list = None):
         self.model_name = model_name
         self.api_key = api_key
+        self.tools = tools
         if api_key:
             self.llm = ChatOpenAI(model=model_name, api_key=api_key)
         else:
@@ -108,7 +110,30 @@ class QuestionAnsweringNode:
         # Normalize intent and select appropriate system prompt
         intent = state["intent"].lower().strip()
         
-        if "recommendation" in intent:
+        if "github stats" in intent:
+            # Create agent with GitHub tools
+            agent = initialize_agent(
+                tools=self.tools,
+                llm=llm,
+                agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION,
+                verbose=True,
+                system_message="""You are a helpful assistant that provides information about Eric Washington's GitHub activity.
+                When asked about GitHub stats, you should:
+                1. Use the github_user_stats tool to get overall statistics
+                2. For the lookback_days parameter:
+                   - DO NOT pass a lookback_days parameter unless the user explicitly asks for a different timeframe
+                   - If the user just asks "What are Eric's GitHub stats?", DO NOT pass a lookback_days parameter
+                3. Present the information in a clear, readable format
+                """
+            )
+            # Get the last human message
+            last_message = get_last_human_message(state["messages"])
+            logging.info(f"QuestionAnsweringNode: Using input message: {last_message}")
+            # Run agent with just the query, providing previous messages as chat_history
+            response = agent.invoke({"input": last_message, "chat_history": state["messages"][:-1]})
+            logging.info(f"QuestionAnsweringNode: Agent response: {response}")
+            state["answer"] = response["output"]
+        elif "recommendation" in intent:
             system_msg = prompts.recommendation_system_prompt
             logging.info("QuestionAnsweringNode: Using recommendation system prompt with project data")
         elif "medical" in intent or "taxonomy" in intent:
@@ -129,18 +154,16 @@ class QuestionAnsweringNode:
         else:
             raise ValueError(f"Invalid intent: {state['intent']}")
         
-        # Create messages list with system message and existing chat history
-        messages = [SystemMessage(content=system_msg)] + state["messages"]
-        
-        # Generate answer
-        response = llm.invoke(messages)
-        
-        # Update state
-        state["answer"] = response.content
-        state["next"] = "end"
+        if "github stats" not in intent:
+            # Create messages list with system message and existing chat history
+            messages = [SystemMessage(content=system_msg)] + state["messages"]
+            
+            # Generate answer
+            response = llm.invoke(messages)
+            state["answer"] = response.content
         
         # Add assistant's response to message history
-        state["messages"].append(AIMessage(content=response.content))
+        state["messages"].append(AIMessage(content=state["answer"]))
         
-        logging.info(f"QuestionAnsweringNode: Generated answer of length {len(response.content)}")
+        logging.info(f"QuestionAnsweringNode: Generated answer of length {len(state['answer'])}")
         return state

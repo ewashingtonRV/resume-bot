@@ -61,7 +61,6 @@ class GitHubStats:
             "unified-search-vespa-application"
         ]
         
-    
     def get_repo_user_commits(self, repo_name: str, lookback_days: int) -> int:
         """
         Get the number of commits made by the user to a specific repository.
@@ -101,6 +100,8 @@ class GitHubStats:
         Calculate the date range for the lookback period.
         """
         end_date = datetime.now()
+        if isinstance(lookback_days, str):
+            lookback_days = int(lookback_days)
         start_date = end_date - timedelta(days=lookback_days)
         return start_date, end_date
     
@@ -143,9 +144,6 @@ class GitHubStats:
         Returns:
             Dict containing repository statistics including PRs and commits per repo
         """
-        # Calculate date range
-        start_date, end_date = self.calculate_date_range(lookback_days)
-        
         # Initialize stats dictionary
         stats = {
             'repositories': {}
@@ -157,8 +155,8 @@ class GitHubStats:
                 repo_name = repo['name']
                 
                 # Get commit and PR counts for this repo
-                commit_count = self.get_user_commits(repo_name, lookback_days)
-                pr_count = self.get_user_pulls(repo_name, lookback_days)
+                commit_count = self.get_repo_user_commits(repo_name, lookback_days)
+                pr_count = self.get_repo_user_prs(repo_name, lookback_days)
                 
                 # Only include repos where user has contributed
                 if commit_count > 0 or pr_count > 0:

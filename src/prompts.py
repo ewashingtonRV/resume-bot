@@ -29,7 +29,8 @@ category_dict = [
     },
     {
         "category_name": "github stats",
-        "category_description": "Used GitHub API to fetch and display user's yearly contributions, including commits, pull requests, and issues, to provide a comprehensive overview of their coding activity."
+        "category_description": "Fetch and display stats about Eric Washington's coding activity (commits and pull requests). But only classify the question as github stats if the question is about Eric Washington's overall coding activity. \
+            If the questions is about Eric's codeing activity in respect to a specific project, then do not classify it as a github stats question."
     },
 
 ]

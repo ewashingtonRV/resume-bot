@@ -90,10 +90,7 @@ async def chat_endpoint(request: ChatRequest):
             "next": "intent_classification",
             "intent": None,
             "openai_api_key": openai_api_key  # Always use environment variable
-        }
-        
-        logger.info(f"✅ Using API key from environment (starts with: {openai_api_key[:15]}...)")
-        
+        }        
         # Create config with thread_id for checkpointer
         config = {
             "configurable": {
