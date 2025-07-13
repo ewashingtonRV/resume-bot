@@ -4,7 +4,7 @@ from typing import List, Dict
 from src.state import State
 import src.prompts as prompts
 import logging
-from langchain.agents import initialize_agent, AgentType
+from langgraph.prebuilt import create_react_agent
 
 def get_last_human_message(messages: List[BaseMessage]) -> str:
     """Extract the last human message from the chat history."""
@@ -132,15 +132,8 @@ class QuestionAnsweringNode:
             self.llm = ChatOpenAI(model=model_name)
 
     def create_agent(self, llm: ChatOpenAI, tools: list, system_message: str):
-        """Create a new agent with the specified configuration."""
-        return initialize_agent(
-            tools=tools,
-            llm=llm,
-            agent=AgentType.OPENAI_FUNCTIONS,
-            verbose=True,
-            handle_parsing_errors=True,
-            system_message=system_message
-        )
+        """Create a new agent with the specified configuration using LangGraph."""
+        return create_react_agent(llm, tools, prompt=system_message)
 
     def __call__(self, state: State) -> State:
         """Process questions using the full message history for context."""
@@ -196,9 +189,17 @@ class QuestionAnsweringNode:
         
         try:
             # Run agent with the query
-            response = agent.invoke({"input": last_message})
+            response = agent.invoke({"messages": [HumanMessage(content=last_message)]})
             logging.info(f"QuestionAnsweringNode: Agent response: {response}")
-            state["answer"] = response["output"]
+            # Extract the response content from the agent's response
+            if response and "messages" in response and response["messages"]:
+                last_ai_message = response["messages"][-1]
+                if hasattr(last_ai_message, 'content'):
+                    state["answer"] = last_ai_message.content
+                else:
+                    state["answer"] = str(last_ai_message)
+            else:
+                state["answer"] = "I apologize, but I couldn't generate a response."
         except Exception as e:
             logging.error(f"Error in agent execution: {str(e)}")
             # Create messages list with system message and existing chat history

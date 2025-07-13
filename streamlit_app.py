@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 import logging
 import uuid
 import time
+import re
 
 # Import the pre-configured graph
 from src.graph import graph
@@ -12,9 +13,24 @@ from src.state import State
 logging.basicConfig(level=logging.INFO)
 
 def response_generator(response):
-    for word in response.split():
-        yield word + " "
-        time.sleep(0.05)
+    """Generator that yields chunks of text while preserving markdown formatting."""
+    # Split by sentences or logical chunks instead of words to preserve formatting
+    
+    # Split by sentences but keep the delimiters
+    sentences = re.split(r'(\n\n|\n|\.|\!|\?)', response)
+    
+    current_chunk = ""
+    for part in sentences:
+        current_chunk += part
+        # Yield on sentence endings or line breaks
+        if part in ['\n\n', '\n'] or (part in ['.', '!', '?'] and len(current_chunk.strip()) > 20):
+            yield current_chunk
+            current_chunk = ""
+            time.sleep(0.1)  # Slower for better readability
+    
+    # Yield any remaining content
+    if current_chunk.strip():
+        yield current_chunk
 
 def initialize_session_state():
     """Initialize session state variables."""
@@ -97,8 +113,18 @@ def main():
                 response = invoke_graph_with_question(prompt)
             
             if response:
-                # Stream the response
-                st.write_stream(response_generator(response.content))
+                # Create a placeholder for streaming
+                response_placeholder = st.empty()
+                full_response = ""
+                
+                # Stream the response chunk by chunk
+                for chunk in response_generator(response.content):
+                    full_response += chunk
+                    # Use markdown for proper formatting during streaming
+                    response_placeholder.markdown(full_response + "▌")  # Add cursor
+                
+                # Final update without cursor
+                response_placeholder.markdown(full_response)
             else:
                 st.error("Sorry, I encountered an error processing your question.")
     
