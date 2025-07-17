@@ -4,6 +4,7 @@ import logging
 import uuid
 import time
 import re
+import os
 
 # Import the pre-configured graph
 from src.graph import graph
@@ -51,11 +52,22 @@ def invoke_graph_with_question(question: str):
         "answer": None
     }
     
+    # Detect environment - simple check for localhost/local development
+    is_local = os.getenv("ENVIRONMENT", "").lower() in ["local", "development"] or \
+              os.getenv("LANGCHAIN_ENDPOINT", "").startswith("http://localhost") or \
+              "localhost" in os.getenv("LANGCHAIN_ENDPOINT", "")
+    
     # Create config with thread_id for checkpointer
     config = {
         "configurable": {
             "thread_id": st.session_state.thread_id
-        }
+        },
+        "metadata": {
+            "environment": "local" if is_local else "production",
+            "is_local_testing": is_local,
+            "interface": "streamlit"
+        },
+        "tags": ["resume-bot", "streamlit", "local" if is_local else "production"]
     }
     
     # Invoke the graph
