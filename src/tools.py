@@ -17,10 +17,10 @@ def run_async_safe(coro):
     try:
         # Try to get the current event loop
         loop = asyncio.get_running_loop()
-        # If we're in an async context, we need to handle it differently
+        # If we're in an async context and nest_asyncio is applied, 
+        # we can use asyncio.run() directly
         if loop.is_running():
-            # We're in a running event loop, so we can't use asyncio.run()
-            # Instead, we'll use nest_asyncio to allow nested loops
+            # Since nest_asyncio.apply() was called, this should work
             return asyncio.run(coro)
         else:
             # No running loop, safe to use asyncio.run()
@@ -28,6 +28,14 @@ def run_async_safe(coro):
     except RuntimeError:
         # No event loop exists, safe to use asyncio.run()
         return asyncio.run(coro)
+    except Exception as e:
+        logging.error(f"Error in run_async_safe: {str(e)}")
+        # Fallback: try to run the coroutine directly if possible
+        try:
+            return asyncio.run(coro)
+        except Exception as e2:
+            logging.error(f"Fallback also failed: {str(e2)}")
+            return {}
 
 class GitHubStats:
     def __init__(self):
@@ -195,7 +203,10 @@ class GitHubStats:
 
     def get_repo_stats(self, lookback_days: int = 365, intent_category_name: str = None) -> List[Dict[str, Any]]:
         """Get GitHub statistics for contributions to repositories (sync wrapper)."""
-        return run_async_safe(self.get_repo_stats_async(lookback_days, intent_category_name))
+        logging.info(f"get_repo_stats called with lookback_days={lookback_days}, intent_category_name={intent_category_name}")
+        result = run_async_safe(self.get_repo_stats_async(lookback_days, intent_category_name))
+        logging.info(f"get_repo_stats returning: {result}")
+        return result
 
     async def get_repo_stats_async(self, lookback_days: int = 365, intent_category_name: str = None) -> List[Dict[str, Any]]:
         """Get GitHub statistics for contributions to repositories asynchronously."""
@@ -249,7 +260,10 @@ class GitHubStats:
 
     def get_user_stats(self, lookback_days: int = 365) -> Dict[str, Any]:
         """Get GitHub statistics for the user (sync wrapper)."""
-        return run_async_safe(self.get_user_stats_async(lookback_days))
+        logging.info(f"get_user_stats called with lookback_days={lookback_days}")
+        result = run_async_safe(self.get_user_stats_async(lookback_days))
+        logging.info(f"get_user_stats returning: {result}")
+        return result
 
     async def get_user_stats_async(self, lookback_days: int = 365) -> Dict[str, Any]:
         """Get GitHub statistics for the user asynchronously."""
