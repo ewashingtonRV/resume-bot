@@ -1,6 +1,6 @@
 import requests
 import json
-
+import pandas as pd
 
 def ask_single_question(question):
     api_base_url = "http://localhost:8000"
@@ -27,3 +27,28 @@ def get_answer_from_response_json(response_json):
     response_lod = response_json["messages"]
     answer_list = [response for response in response_lod if response['role'] == 'assistant']
     return answer_list[0]["content"]
+
+def get_golden_dataset_path():
+    golden_dataset_path = "/Users/ewashington/Desktop/github/resume-bot/data/evals/golden_df.csv"
+    return golden_dataset_path
+
+def get_golden_dataset():
+    golden_dataset_path = get_golden_dataset_path()
+
+    # Try these encodings (most likely to work):
+    encodings_to_try = ['cp1252', 'latin-1', 'iso-8859-1', 'utf-8-sig']
+
+    for encoding in encodings_to_try:
+        try:
+            golden_df = pd.read_csv(golden_dataset_path, encoding=encoding)
+            print(f"✅ Success with encoding: {encoding}")
+            break
+        except UnicodeDecodeError as e:
+            print(f"❌ Failed with {encoding}: {e}")
+    return golden_df.dropna()
+
+def save_golden_dataset(df):
+    golden_dataset_path = get_golden_dataset_path()
+    df.to_csv(golden_dataset_path, index=False)
+    print(f"Saved golden dataset to {golden_dataset_path}")
+
