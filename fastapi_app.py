@@ -23,7 +23,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 logger.info(f"OPENAI_API_KEY: {openai_api_key}")
 
 if openai_api_key:
-    logger.info(f"✅ OPENAI_API_KEY loaded successfully (starts with: {openai_api_key[:15]}...)")
+    logger.info(f"✅ OPENAI_API_KEY loaded successfully (starts with: {openai_api_key[:7]}...)")
 else:
     logger.error("❌ OPENAI_API_KEY not found in environment variables!")
 
@@ -84,6 +84,9 @@ async def chat_endpoint(request: ChatRequest):
         # Convert Pydantic messages to LangChain messages
         langchain_messages = convert_to_langchain_messages(request.messages)
         
+        # Detect environment - simple check for localhost/local development
+        is_local = True
+        
         # Create state for the graph
         state = {
             "messages": langchain_messages,
@@ -95,7 +98,12 @@ async def chat_endpoint(request: ChatRequest):
         config = {
             "configurable": {
                 "thread_id": thread_id
-            }
+            },
+            "metadata": {
+                "environment": "local" if is_local else "production",
+                "is_local_testing": is_local
+            },
+            "tags": ["resume-bot", "fastapi", "local" if is_local else "production"]
         }
         
         # Invoke the graph
