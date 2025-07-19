@@ -5,6 +5,7 @@ import uuid
 import time
 import re
 from src.utils import MarkdownReader
+import os
 
 # Import the pre-configured graph
 from src.graph import graph
@@ -53,7 +54,8 @@ def invoke_graph_with_question(question: str):
     }
     
     # Detect environment - simple check for localhost/local development
-    is_local = False
+    is_local = os.getenv("IS_LOCAL_TESTING") == "True"
+
     # Create config with thread_id for checkpointer
     config = {
         "configurable": {
