@@ -4,7 +4,7 @@ import logging
 import uuid
 import time
 import re
-import os
+from src.utils import MarkdownReader
 
 # Import the pre-configured graph
 from src.graph import graph
@@ -53,10 +53,7 @@ def invoke_graph_with_question(question: str):
     }
     
     # Detect environment - simple check for localhost/local development
-    is_local = os.getenv("ENVIRONMENT", "").lower() in ["local", "development"] or \
-              os.getenv("LANGCHAIN_ENDPOINT", "").startswith("http://localhost") or \
-              "localhost" in os.getenv("LANGCHAIN_ENDPOINT", "")
-    
+    is_local = False
     # Create config with thread_id for checkpointer
     config = {
         "configurable": {
@@ -99,10 +96,28 @@ def display_chat_history():
             st.markdown(msg_dict["content"])
 
 def main():
-    st.title("Resume Bot Chat")
-    st.markdown("Ask me questions about my experience and projects! \
-                The bot is currently geared towards providing specifics about the RVOH bullets in my resume")
+    st.title("Eric's Resume Bot")
+    # Read resume markdown
+    mdr = MarkdownReader()
+    resume_text = mdr.read_markdown_files('./data/resume.md')
     
+    # Display resume and bot introduction
+    st.markdown("""Hi I'm Remy, Eric's resume bot! I am designed to answer questions about the RVOH bullets on Eric's resume.
+
+Here are some sample questions you can ask me:
+* Can you tell me more about how Eric's Medical Taxonomy Enrichment service works?
+* What is Relevance as a Service and how does it work? 
+* What are Eric's code contributions to the AI Agent projects in the last 30 days?
+""")
+    
+    # Add download button for resume
+    st.download_button(
+        label="📄 Download Eric's Resume",
+        data=resume_text,
+        file_name="Eric_Washington_Resume.md",
+        mime="text/markdown",
+        help="Click to download Eric's resume as a Markdown file"
+    )
     # Initialize session state
     initialize_session_state()
     
