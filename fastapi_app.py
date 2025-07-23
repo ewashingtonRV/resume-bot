@@ -85,7 +85,7 @@ async def chat_endpoint(request: ChatRequest):
         langchain_messages = convert_to_langchain_messages(request.messages)
         
         # Detect environment - simple check for localhost/local development
-        is_local = True
+        is_local = os.getenv("IS_LOCAL_TESTING") == "True"
         
         # Create state for the graph
         state = {
