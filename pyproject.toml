@@ -5,6 +5,7 @@ description = "Resume Bot with FastAPI and LangGraph"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "aiohttp>=3.9.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "pydantic>=2.5.0",
@@ -18,4 +19,10 @@ dependencies = [
     "requests>=2.32.0",
     "streamlit>=1.45.0",
     "ipykernel>=6.29.5",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.3",
 ]

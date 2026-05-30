@@ -32,7 +32,7 @@ class TracesETL:
         
     @staticmethod
     def extract_system_prompt(trace_lod: list[dict]) -> str:
-        input_dict = trace_lod[-1]["inputs"]["messages"][0][0]["kwargs"]
+        input_dict = trace_lod[0]["inputs"]["messages"][0][0]["kwargs"]
         if input_dict["type"] == "system":
             system_prompt = input_dict["content"]
             return system_prompt
@@ -55,7 +55,7 @@ class TracesETL:
 
     @staticmethod
     def get_filtered_traces_and_thread_id_list(is_local_testing: bool, runs_list):
-        filtered_traces = [trace for trace in runs_list if trace.metadata['is_local_testing'] == is_local_testing]
+        filtered_traces = [trace for trace in runs_list if trace.metadata.get('is_local_testing', False) == is_local_testing]
         thread_id_list = list(set([trace.metadata['thread_id'] for trace in filtered_traces]))
         return filtered_traces, thread_id_list
 
@@ -64,19 +64,23 @@ class TracesETL:
         filtered_traces, thread_id_list = self.get_filtered_traces_and_thread_id_list(is_local_testing=is_local_testing, runs_list=runs_list)
         output_lod = []
         for thread_id in thread_id_list:
-            output_dict_i = {}
-            trace_lod_i = [trace.dict() for trace in filtered_traces if trace.metadata['thread_id'] == thread_id]
-            human_question = self.extract_question(trace_lod_i)
-            system_prompt = self.extract_system_prompt(trace_lod_i)
-            ai_answer = self.extract_ai_answer(trace_lod_i)
-            classifications = self.extract_classifications(trace_lod_i)
-            output_dict_i["thread_id"] = thread_id
-            output_dict_i["human_question"] = human_question
-            output_dict_i["system_prompt"] = system_prompt
-            output_dict_i["ai_answer"] = ai_answer
-            output_dict_i["tool_used"] = "tools" in trace_lod_i[0]["extra"]["invocation_params"].keys()
-            output_dict_i.update(classifications)
-            output_lod.append(output_dict_i)
+            try:
+                output_dict_i = {}
+                trace_lod_i = [trace.dict() for trace in filtered_traces if trace.metadata['thread_id'] == thread_id]
+                human_question = self.extract_question(trace_lod_i)
+                system_prompt = self.extract_system_prompt(trace_lod_i)
+                ai_answer = self.extract_ai_answer(trace_lod_i)
+                classifications = self.extract_classifications(trace_lod_i)
+                output_dict_i["thread_id"] = thread_id
+                output_dict_i["human_question"] = human_question
+                output_dict_i["system_prompt"] = system_prompt
+                output_dict_i["ai_answer"] = ai_answer
+                output_dict_i["tool_used"] = "tools" in trace_lod_i[0]["extra"]["invocation_params"].keys()
+                output_dict_i.update(classifications)
+                output_lod.append(output_dict_i)
+            except Exception as e:
+                print(f"Error processing thread {thread_id}: {e}")
+                continue
         return output_lod
     
     @staticmethod

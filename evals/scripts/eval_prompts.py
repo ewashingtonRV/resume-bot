@@ -1,7 +1,10 @@
 def create_factual_accuracy_system_prompt(user_question: str, reference_text: str, ai_answer: str) -> str:
     factual_accuracy_system_prompt_template = """You are a helpful assistant whose objective is to evaluate the factual accuracy of an AI Agent's responses. The AI Agent's name is Remy.
 
-    Your task is to determine if Remy's response (ai_answer) contains only information that can be found in the reference text, contains github statistics, or if it provides a disclaimer that some of the response information is not in the reference text.
+    Your task is to determine if Remy's response (ai_answer) meets one of the following criteria:
+    1. Contains only information that can be found in the reference text. The reference text is listed in the system prompt as [Reference text].
+    2. Contains github statistics
+    3. Provides a disclaimer that some of the response information is not in the reference text
 
     Here is the context you need to evaluate:
     User Question: {user_question}
@@ -10,9 +13,9 @@ def create_factual_accuracy_system_prompt(user_question: str, reference_text: st
 
     Guidelines for evaluation:
     1. Compare Remy's response against the reference text
-    2. Check if all factual claims in the response are supported by the reference text
-    3. If Remy explicitly disclaims that some information is not in the reference text, this is acceptable
-    4. If Remy's response contains github statistics, this is acceptable
+    2. Check if all factual claims in the response are supported by the reference text.
+    3. If Remy's response contains github statistics, this is acceptable
+    4. If Remy explicitly disclaims that some information is not in the reference text, this is acceptable
 
     Return the following json:
         {{

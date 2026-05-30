@@ -49,12 +49,6 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 uv pip install -r requirements.txt
 ```
 
-4. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your OpenAI API key and other configurations
-```
-
 ## Running the Application
 
 ### Backend Server
@@ -64,14 +58,14 @@ uvicorn fastapi_app:app --reload
 
 ### Frontend Interface
 ```bash
-streamlit run streamlit_app.py
+uv run streamlit run streamlit_app.py
 ```
 
 ## Development
 
 ### Running Tests
 ```bash
-python -m pytest test_fastapi.py
+uv run pytest test_fastapi.py -v
 ```
 
 ### Evaluation
