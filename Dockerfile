@@ -5,15 +5,8 @@ FROM python:3.11-slim-bullseye AS base
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV PIP_NO_CACHE_DIR=off
-ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-ENV PIP_DEFAULT_TIMEOUT=100
-# Poetry env vars (uv uses some of these)
-# Or your desired Poetry version
-ENV POETRY_VERSION=1.7.1
-ENV POETRY_HOME="/opt/poetry"
-ENV POETRY_VIRTUALENVS_CREATE=false
-ENV PATH="$POETRY_HOME/bin:$PATH"
+ENV UV_CACHE_DIR=/opt/uv-cache
+ENV UV_LINK_MODE=copy
 
 # Set work directory
 WORKDIR /app
@@ -21,23 +14,25 @@ WORKDIR /app
 # --- Builder Stage --- #
 FROM base AS builder
 
-RUN pip install uvicorn
-
 # Install system dependencies including build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN pip install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Copy requirements.txt first (for better Docker layer caching)
-COPY requirements.txt .
+# Create cache directory
+RUN mkdir -p /opt/uv-cache
+
+# Copy pyproject.toml and uv.lock first (for better Docker layer caching)
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN uv sync --frozen --no-dev
 
 # Copy the rest of the application code
 COPY . .
@@ -45,9 +40,11 @@ COPY . .
 # --- Final Stage --- #
 FROM base AS final
 
-# Copy installed dependencies from builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Install uv in final stage for runtime
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Copy the virtual environment from builder stage
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY . .
@@ -55,6 +52,9 @@ COPY . .
 # Ensure alembic directory and ini are copied if they exist (they will soon)
 # COPY ./alembic.ini /app/  # Temporarily commented out until alembic init is run
 # COPY ./alembic /app/alembic # Temporarily commented out until alembic init is run
+
+# Add virtual environment to path
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 

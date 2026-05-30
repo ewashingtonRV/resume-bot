@@ -3,8 +3,7 @@ import logging
 import os
 from src.state import State
 from langgraph.checkpoint.memory import MemorySaver
-from langchain.agents import Tool
-from langchain.tools import StructuredTool
+from langchain_core.tools import StructuredTool
 from src.nodes import IntentClassificationNode, QuestionAnsweringNode, GitHubStatsIntentClassificationNode
 from src.tools import GitHubStats
 from pydantic import BaseModel, Field
@@ -21,9 +20,9 @@ graph_builder = StateGraph(State)
 
 # Add tools
 github_stats = GitHubStats()
-tool_github_user_stats = Tool(
-        name="github_user_stats",
+tool_github_user_stats = StructuredTool.from_function(
         func=github_stats.get_user_stats,
+        name="github_user_stats",
         description="""Retrieves Eric Washington's overall GitHub statistics for a specified time period.
         Requires only one parameter:
         - lookback_days: Number of days to look back (e.g. 7 for a week, 30 for a month, 365 for a year)""",
