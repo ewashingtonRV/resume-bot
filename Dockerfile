@@ -60,4 +60,4 @@ EXPOSE 8000
 
 # Command to run the FastAPI application using uvicorn
 # Use --host 0.0.0.0 to make it accessible from outside the container
-CMD ["uvicorn", "fastapi_app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "apps.fastapi_app:app", "--host", "0.0.0.0", "--port", "8000"]
