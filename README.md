@@ -19,6 +19,9 @@ resume-bot/
 ├── evals/             # Evaluation framework
 │   ├── scripts/       # Evaluation scripts
 │   └── src/          # Evaluation source code
+├── apps/              # Application entry points
+│   ├── fastapi_app.py # FastAPI backend
+│   └── streamlit_app.py # Streamlit frontend
 ├── src/               # Core bot logic
 │   ├── graph.py      # Conversation flow graph
 │   ├── nodes.py      # Processing nodes
@@ -26,8 +29,7 @@ resume-bot/
 │   ├── state.py      # State management
 │   ├── tools.py      # Utility tools
 │   └── utils.py      # Helper functions
-├── fastapi_app.py     # FastAPI backend
-└── streamlit_app.py   # Streamlit frontend
+└── tests/             # Test suite
 ```
 
 ## Setup
@@ -38,15 +40,9 @@ git clone https://github.com/yourusername/resume-bot.git
 cd resume-bot
 ```
 
-2. Create and activate a virtual environment:
+2. Install dependencies using uv:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies using uv:
-```bash
-uv pip install -r requirements.txt
+uv sync
 ```
 
 4. Set up environment variables:
@@ -59,19 +55,19 @@ cp .env.example .env
 
 ### Backend Server
 ```bash
-uvicorn fastapi_app:app --reload
+uv run uvicorn apps.fastapi_app:app --reload
 ```
 
 ### Frontend Interface
 ```bash
-streamlit run streamlit_app.py
+uv run streamlit run apps/streamlit_app.py
 ```
 
 ## Development
 
 ### Running Tests
 ```bash
-python -m pytest test_fastapi.py
+uv run pytest tests/
 ```
 
 ### Evaluation

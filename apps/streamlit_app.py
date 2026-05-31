@@ -101,7 +101,7 @@ def main():
     st.title("Eric's Resume Bot")
     # Read resume markdown
     mdr = MarkdownReader()
-    resume_text = mdr.read_markdown_files('./data/resume.md')
+    resume_text = mdr.read_markdown_files(os.path.join(os.path.dirname(__file__), '..', 'data', 'resume.md'))
     
     # Display resume and bot introduction
     st.markdown("""Hi I'm Remy, Eric's resume bot! I am designed to answer questions about the RVOH bullets on Eric's resume.

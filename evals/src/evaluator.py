@@ -126,11 +126,11 @@ class Evaluator(LLMBase):
         """
         print("""
         • < 0: Poor
-        • 0.00−0.20: Slight
-        • 0.21−0.40: Fair
-        • 0.41−0.60: Moderate
-        • 0.61−0.80: Substantial 
-        • 0.81−1.00: Almost perfect
+        • 0.00-0.20: Slight
+        • 0.21-0.40: Fair
+        • 0.41-0.60: Moderate
+        • 0.61-0.80: Substantial 
+        • 0.81-1.00: Almost perfect
         
         In practice, we aim for κ ≥ 0.6 to ensure labeling reliability.""")
     
