@@ -9,8 +9,13 @@ import ssl
 import nest_asyncio
 load_dotenv()
 
-# Allow nested event loops (needed for FastAPI)
-nest_asyncio.apply()
+# Allow nested event loops where the loop supports patching. Under uvicorn
+# the loop is uvloop, which nest_asyncio can't patch — that's fine, because
+# the FastAPI endpoint runs sync (threadpool), where no loop is running.
+try:
+    nest_asyncio.apply()
+except ValueError:
+    pass
 
 def run_async_safe(coro):
     """Safely run async code in both sync and async contexts."""

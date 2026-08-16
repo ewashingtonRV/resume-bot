@@ -1,0 +1,5 @@
+# Extra dependencies for the offline eval scripts (install on top of the
+# root requirements.txt). The main app no longer uses LangChain/LangSmith.
+langchain-core>=0.3.55
+langchain-openai>=0.3.14
+langsmith>=0.3.33
