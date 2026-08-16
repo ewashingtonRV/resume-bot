@@ -36,7 +36,10 @@ class ChatResponse(BaseModel):
     thread_id: str
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+def chat_endpoint(request: ChatRequest):
+    # Sync on purpose: FastAPI runs it in a threadpool, keeping the blocking
+    # model call off the event loop and letting the GitHub tools use
+    # asyncio.run without patching uvloop.
     """
     Process a conversation with the resume bot.
 
