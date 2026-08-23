@@ -13,7 +13,7 @@ from pathlib import Path
 
 from anthropic import Anthropic
 
-from src.tools import GitHubStats
+from src.stats_provider import CachedGitHubStats
 
 REPO_ROOT = Path(__file__).parent.parent
 VAULT_DIR = REPO_ROOT / "vault"
@@ -94,26 +94,32 @@ def rebuild_system_prompt() -> str:
 
 
 GITHUB_CATEGORIES = [
-    "ds-lead", "raas", "medical taxonomy", "recommendation models",
-    "smart links", "article tagging",
+    "automango", "raas", "medical taxonomy",
+    "recommendation models", "smart links", "article tagging",
 ]
+
+# Precomputed snapshot windows — must match the --windows used when running
+# scripts/collect_github_stats.py.
+GITHUB_LOOKBACK_WINDOWS = [7, 30, 90, 365]
 
 TOOL_DEFINITIONS = [
     {
         "name": "github_user_stats",
         "description": (
             "Retrieves Eric Washington's overall GitHub statistics (commits, "
-            "pull requests, issues) across all projects for a time period. "
+            "pull requests) across his tracked project repos for a time period. "
             "Call this when the user asks about Eric's overall coding or "
-            "GitHub activity. Always tell the user the lookback period the "
-            "stats cover."
+            "GitHub activity. Stats come from a periodically refreshed "
+            "snapshot; the result includes an as_of_date. Always tell the "
+            "user the lookback period and the as-of date the stats cover."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "lookback_days": {
                     "type": "integer",
-                    "description": "Days to look back (e.g. 7 for a week, 30 for a month). Defaults to 365.",
+                    "enum": GITHUB_LOOKBACK_WINDOWS,
+                    "description": "Days to look back. Only these precomputed windows exist. Defaults to 365.",
                 },
             },
             "required": [],
@@ -125,8 +131,10 @@ TOOL_DEFINITIONS = [
             "Retrieves Eric Washington's GitHub statistics (commits, pull "
             "requests, code changes) for the repositories of a specific "
             "project category. Call this when the user asks about Eric's "
-            "coding activity on a specific project. Always tell the user the "
-            "lookback period the stats cover."
+            "coding activity on a specific project. Stats come from a "
+            "periodically refreshed snapshot; the result includes an "
+            "as_of_date. Always tell the user the lookback period and the "
+            "as-of date the stats cover."
         ),
         "input_schema": {
             "type": "object",
@@ -138,7 +146,8 @@ TOOL_DEFINITIONS = [
                 },
                 "lookback_days": {
                     "type": "integer",
-                    "description": "Days to look back. Defaults to 365.",
+                    "enum": GITHUB_LOOKBACK_WINDOWS,
+                    "description": "Days to look back. Only these precomputed windows exist. Defaults to 365.",
                 },
             },
             "required": ["intent_category_name"],
@@ -154,7 +163,7 @@ def _execute_tool(name: str, arguments: dict) -> tuple[str, bool]:
     gracefully.
     """
     try:
-        stats = GitHubStats()  # lazy: raises here if GITHUB_TOKEN is missing
+        stats = CachedGitHubStats()  # lazy: raises here if GITHUB_STATS_BUCKET is missing
         if name == "github_user_stats":
             result = stats.get_user_stats(**arguments)
         elif name == "github_repo_stats":

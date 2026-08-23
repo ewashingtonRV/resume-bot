@@ -100,6 +100,8 @@ dmypy.json
 
 # Additional
 data/
+# local GitHub stats snapshot (uploaded to S3, never committed)
+data/github_stats/
 explore-uv/
 scratch.ipynb
 vault/

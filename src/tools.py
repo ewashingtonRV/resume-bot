@@ -6,8 +6,11 @@ from typing import Dict, Any, List, Tuple
 from dotenv import load_dotenv
 import logging
 import ssl
+import certifi
 import nest_asyncio
-load_dotenv()
+# override=True: this module only runs locally (collect script), where the
+# repo's .env must beat any stale GITHUB_TOKEN exported by the shell profile.
+load_dotenv(override=True)
 
 # Allow nested event loops where the loop supports patching. Under uvicorn
 # the loop is uvloop, which nest_asyncio can't patch — that's fine, because
@@ -61,25 +64,32 @@ class GitHubStats:
 
     def _create_ssl_session(self) -> aiohttp.ClientSession:
         """Create an aiohttp session with SSL configuration that works on macOS."""
-        # Create SSL context that's more permissive for macOS
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
+        # certifi supplies the CA bundle macOS Python installs sometimes lack;
+        # verification stays on so the token can't be intercepted in transit.
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         return aiohttp.ClientSession(connector=connector)
 
     def get_repos(self) -> list[dict]:
         """Get repositories dictionary."""
         logging.info("Getting repository mappings")
+        # Only repos granted to the fine-grained GITHUB_TOKEN. Category names
+        # must stay in sync with GITHUB_CATEGORIES in src/chat.py.
         repos_lod = [
-            {"category_name": "ds-lead", "repos": ["dmd-evals-dbx-scratch", "health-assistant-batch-evals", "optum-now-health-assistant-ai-api", 
-                                                   "optum-now-health-assistant-be", "optum-now-health-assistant-ds", "rvo-eval-sdk"]},
-            {"category_name": "raas", "repos": ["raas-admin-console-ds-sidecar",  "optum-now-core-graphql-api", "optum-now-traveler-api-ds-sidecar", "optum-now-traveler-ds-api", "traverler-v3-scratch", "unified-search-vespa-application"]},
-            {"category_name": "medical taxonomy", "repos": ["medical-taxonomy-enrichment-api", "guides-symptoms-preprocess"]},
-            {"category_name": "recommendation models", "repos": ["rvo-sdapi-models", "tfe_databricks_datascience"]},
-            {"category_name": "smart links", "repos": ["healthline-smart-links",  "end_of_section_links"]},
-            {"category_name": "article tagging", "repos": ["healthline-k1-tagging", "healthline-kmeta-tagging", "healthline-smart-links", "healthline-update-text-data", "healthline-write-content-app-data"]}
+            {"category_name": "automango", "repos": ["automango", "tf-aws-automango"]},
+            {"category_name": "raas", "repos": ["raas-admin-console-ds-sidecar", "optum-now-raas-api-ds-sidecar", "raas-sdk",
+                                                "raas-content-processing-lambdas", "dtp-content-processing-lambdas",
+                                                "optum-now-traveler-api-ds-sidecar", "optum-now-traveler-ds-api",
+                                                "traveler-ds-sdk", "traveler-ds-api-classes", "traveler-ltr-model",
+                                                "traverler-v3-scratch", "unified-search-vespa-application",
+                                                "unified-search-graphql-api", "unified-search-article-vespa-loader"]},
+            {"category_name": "medical taxonomy", "repos": ["medical-taxonomy-enrichment-api"]},
+            {"category_name": "recommendation models", "repos": ["rvo-sdapi-models", "tfe_databricks_datascience",
+                                                                 "read-next-rec-model", "read-next-api"]},
+            {"category_name": "smart links", "repos": ["healthline-smart-links", "end_of_section_links",
+                                                       "mario_end_of_section_sessions"]},
+            {"category_name": "article tagging", "repos": ["healthline-kmeta-tagging", "healthline-smart-links",
+                                                           "healthline-update-text-data", "healthline-write-content-app-data"]}
         ]
         logging.info(f"Found {len(repos_lod)} category mappings")
         return repos_lod
@@ -131,15 +141,7 @@ class GitHubStats:
             tasks = []
             for repo_name in repo_names:
                 pulls_url = f'{self.base_url}/repos/{self.org_name}/{repo_name}/pulls'
-                params = {
-                    'state': 'all',
-                    'creator': self.username,
-                    'sort': 'created',
-                    'direction': 'desc',
-                    'since': start_date.isoformat(),
-                    'until': end_date.isoformat()
-                }
-                tasks.append(self._fetch_prs(session, repo_name, pulls_url, params))
+                tasks.append(self._fetch_prs(session, repo_name, pulls_url, start_date, end_date))
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -156,21 +158,52 @@ class GitHubStats:
             
             return prs_dict
 
+    @staticmethod
+    def _parse_github_timestamp(value: str) -> datetime:
+        """Parse GitHub's ISO-8601 UTC timestamps to a naive datetime."""
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+
     async def _fetch_commits(self, session: aiohttp.ClientSession, repo_name: str, url: str, params: dict) -> List[Dict]:
-        """Fetch commits for a single repository."""
+        """Fetch commits for a single repository (all pages)."""
+        commits = []
         try:
-            async with session.get(url, headers=self.headers, params=params) as response:
-                response.raise_for_status()
-                return await response.json()
+            for page in range(1, 11):  # safety cap: 1000 commits per repo/window
+                page_params = {**params, 'per_page': 100, 'page': page}
+                async with session.get(url, headers=self.headers, params=page_params) as response:
+                    response.raise_for_status()
+                    batch = await response.json()
+                commits.extend(batch)
+                if len(batch) < 100:
+                    break
+            return commits
         except Exception as e:
             raise Exception(f"Failed to fetch commits for {repo_name}: {str(e)}")
 
-    async def _fetch_prs(self, session: aiohttp.ClientSession, repo_name: str, url: str, params: dict) -> List[Dict]:
-        """Fetch PRs for a single repository."""
+    async def _fetch_prs(self, session: aiohttp.ClientSession, repo_name: str, url: str,
+                         start_date: datetime, end_date: datetime) -> List[Dict]:
+        """Fetch PRs authored by the user within the date range.
+
+        The list-pulls endpoint has no creator/since/until filters, so fetch
+        newest-first and filter client-side, stopping once a page dips past
+        the window start.
+        """
+        prs = []
         try:
-            async with session.get(url, headers=self.headers, params=params) as response:
-                response.raise_for_status()
-                return await response.json()
+            for page in range(1, 11):  # safety cap: 1000 PRs per repo
+                params = {'state': 'all', 'sort': 'created', 'direction': 'desc',
+                          'per_page': 100, 'page': page}
+                async with session.get(url, headers=self.headers, params=params) as response:
+                    response.raise_for_status()
+                    batch = await response.json()
+                for pr in batch:
+                    created = self._parse_github_timestamp(pr["created_at"])
+                    if created < start_date:
+                        return prs
+                    if created <= end_date and (pr.get("user") or {}).get("login") == self.username:
+                        prs.append(pr)
+                if len(batch) < 100:
+                    break
+            return prs
         except Exception as e:
             raise Exception(f"Failed to fetch PRs for {repo_name}: {str(e)}")
 
