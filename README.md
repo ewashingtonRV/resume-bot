@@ -6,7 +6,7 @@ A conversational AI chatbot ("Remy") that answers questions about my professiona
 
 - 🤖 Interactive chat interface for resume-based Q&A
 - 📚 Grounded in a full knowledge-base wiki (`vault/`) loaded into the model's context
-- 🛠️ Native tool calling for live GitHub contribution stats
+- 🛠️ Native tool calling for GitHub contribution stats, served from a periodically refreshed S3 snapshot (no GitHub token in the deployed app)
 - 💾 Prompt caching so the large static context is cheap after the first request
 - 📊 Evaluation framework for testing and improving responses
 - 🚀 FastAPI backend for scalable deployment
@@ -24,9 +24,11 @@ resume-bot/
 ├── apps/               # Application entry points
 │   ├── fastapi_app.py  # FastAPI backend
 │   └── streamlit_app.py# Streamlit frontend
+├── scripts/            # Local-only: collect GitHub stats + upload snapshot to S3
 ├── src/                # Core bot logic
 │   ├── chat.py         # System-prompt assembly + Claude tool-call loop
-│   ├── tools.py        # GitHub stats tools
+│   ├── stats_provider.py # Serves GitHub stats from the S3 snapshot
+│   ├── tools.py        # Live GitHub API client (used only by scripts/)
 │   └── utils.py        # Helper functions
 └── tests/              # Test suite
 ```
@@ -46,10 +48,53 @@ uv sync
 
 3. Set up environment variables in a `.env` file at the repo root:
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...   # required — powers all responses
-GITHUB_TOKEN=ghp_...           # optional — enables the GitHub stats tools
-ANTHROPIC_MODEL=claude-opus-4-8  # optional — defaults to claude-opus-4-8
+ANTHROPIC_API_KEY=sk-ant-...      # required — powers all responses
+ANTHROPIC_MODEL=claude-opus-4-8   # optional — defaults to claude-opus-4-8
+GITHUB_STATS_BUCKET=my-bucket     # optional — enables the GitHub stats tools (S3 snapshot)
+GITHUB_STATS_PREFIX=github-stats/ # optional — S3 key prefix, defaults to github-stats/
+GITHUB_TOKEN=ghp_...              # local only — used by scripts/collect_github_stats.py, never deployed
 ```
+
+AWS credentials for reading the snapshot come from the default boto3 chain (env vars, `~/.aws`, or an IAM role when deployed on AWS).
+
+## GitHub Stats Snapshot (S3)
+
+The deployed app never holds a GitHub token. Stats are precomputed locally
+for fixed lookback windows (7, 30, 90, 365 days), uploaded to a private S3
+bucket, and served from there. Each answer cites the snapshot's as-of date.
+
+### One-time AWS setup
+
+```bash
+aws s3 mb s3://<your-bucket>   # keep it private (default)
+```
+
+Minimal IAM policy for the **deployed app** (read-only):
+
+```json
+{"Version": "2012-10-17", "Statement": [{
+  "Effect": "Allow",
+  "Action": "s3:GetObject",
+  "Resource": "arn:aws:s3:::<your-bucket>/github-stats/*"
+}]}
+```
+
+The identity you upload with locally additionally needs `s3:PutObject` on the
+same resource.
+
+### Refreshing the snapshot
+
+Run locally whenever you want fresher numbers (requires `GITHUB_TOKEN` and a
+read-scoped fine-grained PAT is enough — the scripts only read commits/PRs):
+
+```bash
+uv run python scripts/collect_github_stats.py                  # writes data/github_stats/*.csv (gitignored)
+uv run python scripts/upload_github_stats.py --bucket <bucket> # uploads to s3://<bucket>/github-stats/
+```
+
+The app caches the snapshot in-process — restart or redeploy to pick up a
+refresh. The lookback windows written by the collect script must match
+`GITHUB_LOOKBACK_WINDOWS` in `src/chat.py`.
 
 ## Running the Application Locally
 
@@ -131,7 +176,7 @@ python evaluate.py
 Each user turn is answered by a single Claude (`claude-opus-4-8`) call:
 
 1. **System prompt** — the Remy persona (`.claude/soul.md`) plus the entire `vault/` wiki (excluding `vault/sources/` and `vault/log.md`), assembled at startup and cached with Anthropic prompt caching.
-2. **Tool-call loop** — the GitHub stats tools in `src/tools.py` are exposed as native tool definitions; the model decides when to call them and results are fed back in the same turn.
+2. **Tool-call loop** — the GitHub stats tools are exposed as native tool definitions; the model decides when to call them and results are fed back in the same turn. Results come from the S3 snapshot via `src/stats_provider.py` (see "GitHub Stats Snapshot" above); `src/tools.py` talks to the live GitHub API and is used only by the local collect script.
 3. **Conversation memory** — chat history lives in the client (Streamlit session state, or the `messages` array API clients send), not on the server.
 
 ## Contributing

@@ -1,0 +1,17 @@
+# Secrets must never enter the image — the app reads config from runtime env vars.
+.env
+.env.*
+
+# Not needed at runtime. NOTE: vault/ and .claude/soul.md must NOT be listed
+# here — src/chat.py reads both at startup.
+.git/
+__pycache__/
+*.pyc
+venv/
+.venv/
+data/
+evals/
+tests/
+scripts/
+explore-uv/
+scratch.ipynb

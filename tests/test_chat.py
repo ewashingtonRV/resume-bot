@@ -78,7 +78,7 @@ def mock_anthropic():
 
 @pytest.fixture
 def mock_github():
-    with patch("src.chat.GitHubStats") as mock_cls:
+    with patch("src.chat.CachedGitHubStats") as mock_cls:
         yield mock_cls
 
 
@@ -105,7 +105,11 @@ def test_tool_use_round_trip(mock_anthropic, mock_github):
         _response([tool_use], stop_reason="tool_use"),
         _response([_text_block("Eric made 12 commits in the last 30 days.")]),
     ]
-    mock_github.return_value.get_user_stats.return_value = {"totalCommitContributions": 12}
+    user_stats = {
+        "as_of_date": "2026-08-22", "lookback_days": 30,
+        "total_commits": 12, "total_pull_requests": 5,
+    }
+    mock_github.return_value.get_user_stats.return_value = user_stats
 
     answer = respond([{"role": "user", "content": "How active is Eric on GitHub?"}])
 
@@ -119,7 +123,7 @@ def test_tool_use_round_trip(mock_anthropic, mock_github):
     assert tool_results[0]["type"] == "tool_result"
     assert tool_results[0]["tool_use_id"] == "toolu_1"
     assert tool_results[0]["is_error"] is False
-    assert json.loads(tool_results[0]["content"]) == {"totalCommitContributions": 12}
+    assert json.loads(tool_results[0]["content"]) == user_stats
 
 
 def test_repo_stats_tool_dispatch(mock_anthropic, mock_github):
@@ -151,7 +155,7 @@ def test_tool_failure_reported_to_model(mock_anthropic, mock_github):
         _response([tool_use], stop_reason="tool_use"),
         _response([_text_block("Stats are unavailable right now.")]),
     ]
-    mock_github.side_effect = ValueError("GitHub token not found")
+    mock_github.side_effect = ValueError("GITHUB_STATS_BUCKET not set")
 
     answer = respond([{"role": "user", "content": "GitHub stats?"}])
 
